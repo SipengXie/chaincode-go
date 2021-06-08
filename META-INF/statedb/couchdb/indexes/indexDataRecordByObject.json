@@ -1,8 +1,0 @@
-{
-    "index":{
-        "fields":["object"] 
-    },
-    "ddoc":"indexDataRecordByObject",  
-    "name":"indexDataRecordByObject",
-    "type":"json"
-}

@@ -1,0 +1,9 @@
+
+{
+    "index":{
+        "fields":["docType","department","user"]
+    },
+    "ddoc":"indexRecordByUser",
+    "name":"indexRecordByUser",
+    "type":"json"
+}
