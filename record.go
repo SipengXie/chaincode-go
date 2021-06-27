@@ -8,10 +8,12 @@ import (
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"strings"
 )
-
+// 该类是实现Chaincode接口的，不需要特别多的成员，只需要将具体方法在后面写出即可
 type SimpleChaincode struct {
 }
-
+/*
+  定义了意见记录和审批记录的数据结构，这些数据在后端都是以String形式存储的
+*/
 type opinionRecord struct {
 	DocType     string `json:"docType"`
 	Id          string `json:"id"`
@@ -21,29 +23,27 @@ type opinionRecord struct {
 	Type        string `json:"type"`
 	OpinionTime string `json:"opinionTime"`
 	DoneTime    string `json:"doneTime"`
-	Content     string `json:"content"`
+
+	Extension1  string `json:"extension1"`
+	Extension2  string `json:"extension2"`
+	Extension3  string `json:"extension3"`
 }
 
 type reviewRecord struct {
 	DocType    string `json:"docType"`
-	Id         string `json:"id"`
 	Department string `json:"department"`
 	Name       string `json:"name"`
 	Object     string `json:"object"`
-	From       string `json:"from"`
-	ReviewTime string `json:"reviewTime"`
 	Result     string `json:"result"`
-}
+	ReviewTime string `json:"reviewTime"`
 
-type userRecord struct {
-	DocType    string `json:"docType"`
-	Id         string `json:"id"`
-	Department string `json:"department"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	Content    string `json:"content"`
+	Extension1  string `json:"extension1"`
+	Extension2  string `json:"extension2"`
+	Extension3  string `json:"extension3"`
 }
-
+/*
+	主函数与初始化函数是链码运行的必要函数，虽然其中并没有具体内容
+*/
 func main() {
 	err := shim.Start(new(SimpleChaincode))
 	if err != nil {
@@ -55,24 +55,21 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Success(nil)
 }
 
+/*
+	Invoke函数，用于响应Fabric SDK的调用，该调用通过gRPC实现
+*/
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	function, args := stub.GetFunctionAndParameters()
-	fmt.Println("Invoking is running" + function)
+	fmt.Println("Invoking is running:" + function)
 	switch function {
 	case "createOpinionRecord":
 		return t.createOpinionRecord(stub, args)
 	case "createReviewRecord":
 		return t.createReviewRecord(stub, args)
-	case "createUserRecord":
-		return t.createUserRecord(stub, args)
 	case "modifyOpinionRecord":
 		return t.modifyOpinionRecord(stub, args)
-	case "modifyUserRecord":
-		return t.modifyUserRecord(stub, args)
 	case "queryWithQueryString":
 		return t.queryWithQueryString(stub, args)
-	case "queryRecordById":
-		return t.queryRecordById(stub, args)
 	case "queryRecordByObject":
 		return t.queryRecordByObject(stub, args)
 	case "queryRecordByUser":
@@ -82,54 +79,46 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	}
 }
 
+// 创建意见信息
 func (t *SimpleChaincode) createOpinionRecord(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var err error
-	if len(args) != 6 && len(args) != 8 {
-		return shim.Error("Incorrect number of arguments: " +
-			"expecting 6 for opinions need to be reviewed; " +
-			"expecting 8 for opinions without being reviewed")
+	if len(args) != 11 {
+		return shim.Error("Incorrect number of arguments: expecting 11; ")
 	}
-
-	for i := 0; i < len(args); i += 1 {
+	for i := 0 ; i < 7 ; i += 1 {
 		if len(args[i]) == 0 {
-			errMessage := fmt.Sprintf("Number %d member of the arguments must be a non-empty string", i)
-			return shim.Error(errMessage)
+			return shim.Error("arg[0] to arg[6] should not be empty")
 		}
 	}
 
 	docType := "opinionRecord"
-	id := strings.ToLower(args[0])
-	department := strings.ToLower(args[1])
-	name := strings.ToLower(args[2])
-	object := strings.ToLower(args[3])
-	_type := strings.ToLower(args[4])
-	opinionTime := strings.ToLower(args[5])
-	var doneTime, content string
-	doneTime = ""
-	content = ""
+	uuid := strings.ToLower(args[0])
+	opinionTime := strings.ToLower(args[6])
+	doneTime := strings.ToLower(args[7])
 
-	if len(args) == 8 {
-		doneTime = strings.ToLower(args[6])
-		content = strings.ToLower(args[7])
-	}
+	extension1 := args[8]
+	extension2 := args[9]
+	extension3 := args[10]
 
-	dataRecordJsonAsBytes, err := stub.GetState(id)
+	dataRecordJsonAsBytes, err := stub.GetState(uuid)
 	if err != nil {
 		return shim.Error("Failed to get opinion record: " + err.Error())
 	} else if dataRecordJsonAsBytes != nil {
-		return shim.Error("Duplicated opinion record found: " + id)
+		return shim.Error("Duplicated opinion record found: " + uuid)
 	}
 
 	dataRecord := &opinionRecord{
 		docType,
-		id,
-		department,
-		name,
-		object,
-		_type,
+		args[1],
+		args[2],
+		args[3],
+		args[4],
+		args[5],
 		opinionTime,
 		doneTime,
-		content,
+		extension1,
+		extension2,
+		extension3,
 	}
 
 	dataRecordJsonAsBytes, err = json.Marshal(dataRecord)
@@ -137,52 +126,50 @@ func (t *SimpleChaincode) createOpinionRecord(stub shim.ChaincodeStubInterface, 
 		return shim.Error(err.Error())
 	}
 
-	err = stub.PutState(id, dataRecordJsonAsBytes)
+	err = stub.PutState(uuid, dataRecordJsonAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
 	return shim.Success(nil)
 }
-
+// 创建审批信息
 func (t *SimpleChaincode) createReviewRecord(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var err error
-	if len(args) != 7 {
-		return shim.Error("Incorrect number of arguments: expecting 7.")
+	if len(args) != 9 {
+		return shim.Error("Incorrect number of arguments: expecting 9.")
 	}
-
-	for i := 0; i < len(args); i += 1 {
+	for i := 0 ; i < 6 ; i += 1 {
 		if len(args[i]) == 0 {
-			errMessage := fmt.Sprintf("Number %d member of arguments must be a non-empty string", i)
-			return shim.Error(errMessage)
+			return shim.Error("arg[0] to arg[5] should not be empty")
 		}
 	}
 
 	docType := "reviewRecord"
-	id := strings.ToLower(args[0])
-	department := strings.ToLower(args[1])
-	name := strings.ToLower(args[2])
-	object := strings.ToLower(args[3])
-	from := strings.ToLower(args[4])
+	uuid := strings.ToLower(args[0])
 	reviewTime := strings.ToLower(args[5])
-	result := strings.ToLower(args[6])
+	extension1 := args[6]
+	extension2 := args[7]
+	extension3 := args[8]
 
-	reviewRecordJsonAsBytes, err := stub.GetState(id)
+
+	reviewRecordJsonAsBytes, err := stub.GetState(uuid)
 	if err != nil {
 		return shim.Error("Failed to get review record: " + err.Error())
 	} else if reviewRecordJsonAsBytes != nil {
-		return shim.Error("Duplicated review record found: " + id)
+		return shim.Error("Duplicated review record found: " + uuid)
 	}
 
 	reviewRecord := &reviewRecord{
 		docType,
-		id,
-		department,
-		name,
-		object,
-		from,
+		args[1],
+		args[2],
+		args[3],
+		args[4],
 		reviewTime,
-		result,
+		extension1,
+		extension2,
+		extension3,
 	}
 
 	reviewRecordJsonAsBytes, err = json.Marshal(reviewRecord)
@@ -190,66 +177,27 @@ func (t *SimpleChaincode) createReviewRecord(stub shim.ChaincodeStubInterface, a
 		return shim.Error(err.Error())
 	}
 
-	err = stub.PutState(id, reviewRecordJsonAsBytes)
+	err = stub.PutState(uuid, reviewRecordJsonAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 	return shim.Success(nil)
 }
-
-func (t *SimpleChaincode) createUserRecord(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	var err error
-	if len(args) != 5 {
-		return shim.Error("Incorrect number of arguments for user, expecting 5")
-	}
-	for i := 0; i < 5; i += 1 {
-		if len(args[i]) <= 0 {
-			errMessage := fmt.Sprintf("No.%d argument must be a non-empty string", i)
-			return shim.Error(errMessage)
-		}
-	}
-
-	docType := "userRecord"
-	id := strings.ToLower(args[0])
-	department := strings.ToLower(args[1])
-	name := strings.ToLower(args[2])
-	role := strings.ToLower(args[3])
-	content := strings.ToLower(args[4])
-
-	userJsonAsBytes, err := stub.GetState(id)
-	if err != nil {
-		return shim.Error("Failed to get user: " + err.Error())
-	} else if userJsonAsBytes != nil {
-		return shim.Error("Duplicated user found")
-	}
-
-	userRecord := &userRecord{
-		docType,
-		id,
-		department,
-		name,
-		role,
-		content,
-	}
-
-	userJsonAsBytes, err = json.Marshal(userRecord)
-	if err != nil {
-		shim.Error(err.Error())
-	}
-	err = stub.PutState(id, userJsonAsBytes)
-	if err != nil {
-		shim.Error(err.Error())
-	}
-	return shim.Success(nil)
-}
-
+// 修改意见信息，用于更新意见的决定时间
 func (t *SimpleChaincode) modifyOpinionRecord(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var err error
-	if len(args) != 3 {
-		return shim.Error("Incorrect number of arguments: expecting 3")
+	if len(args) != 2 {
+		return shim.Error("Incorrect number of arguments: expecting 2")
 	}
-	id := strings.ToLower(args[0])
-	opinionRecordJsonAsBytes, err := stub.GetState(id)
+	for i := 0 ; i < 2 ; i += 1 {
+		if len(args[i]) == 0 {
+			return shim.Error("arg[0] to arg[1] should not be empty")
+		}
+	}
+	uuid := strings.ToLower(args[0])
+	doneTime := strings.ToLower(args[1])
+
+	opinionRecordJsonAsBytes, err := stub.GetState(uuid)
 	if err != nil {
 		return shim.Error("Failed to get opinion record: " + err.Error())
 	} else if opinionRecordJsonAsBytes == nil {
@@ -262,64 +210,20 @@ func (t *SimpleChaincode) modifyOpinionRecord(stub shim.ChaincodeStubInterface, 
 		return shim.Error(err.Error())
 	}
 
-	if len(opinionRecordInstance.DoneTime) != 0 || len(opinionRecordInstance.Content) != 0 {
+	if len(opinionRecordInstance.DoneTime) != 0  {
 		return shim.Error("Unable to modify a opinion record that has been done")
 	}
-
-	doneTime := strings.ToLower(args[1])
-	content := strings.ToLower(args[2])
 	opinionRecordInstance.DoneTime = doneTime
-	opinionRecordInstance.Content = content
 
 	opinionRecordJsonAsBytes, _ = json.Marshal(opinionRecordInstance)
-	err = stub.PutState(id, opinionRecordJsonAsBytes)
+	err = stub.PutState(uuid, opinionRecordJsonAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 	return shim.Success(nil)
 }
-
-func (t *SimpleChaincode) modifyUserRecord(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	var err error
-	if len(args) != 5 {
-		return shim.Error("Incorrect number of arguments, expecting 5")
-	}
-	id := strings.ToLower(args[0])
-	department := strings.ToLower(args[1])
-	name := strings.ToLower(args[2])
-	role := strings.ToLower(args[3])
-	content := strings.ToLower(args[4])
-
-	userRecordJsonAsBytes, err := stub.GetState(id)
-	if err != nil {
-		return shim.Error("Failed to get user record: " + err.Error())
-	} else if userRecordJsonAsBytes == nil {
-		return shim.Error("user record does not exist")
-	}
-	userRecordInstance := userRecord{}
-	err = json.Unmarshal(userRecordJsonAsBytes, &userRecordInstance)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	userRecordInstance.Name = name
-	userRecordInstance.Department = department
-	userRecordInstance.Role = role
-	userRecordInstance.Content = content
-
-	userRecordJsonAsBytes, err = json.Marshal(userRecordInstance)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(id, userRecordJsonAsBytes)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	return shim.Success(nil)
-}
-
+// 辅助函数，构造返回串格式
 func constructQueryResponseFromIterator(resultsIterator shim.StateQueryIteratorInterface) (*bytes.Buffer, error) {
-	// buffer is a JSON array containing QueryResults
 	var buffer bytes.Buffer
 	buffer.WriteString("{\"list\":[")
 
@@ -329,19 +233,23 @@ func constructQueryResponseFromIterator(resultsIterator shim.StateQueryIteratorI
 		if err != nil {
 			return nil, err
 		}
-		// Add a comma before array members, suppress it for the first array member
 		if bArrayMemberAlreadyWritten == true {
 			buffer.WriteString(",")
 		}
-		// Record is a JSON object, so we write as-is
+		buffer.WriteString("{\"key\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(queryResponse.Key)
+		buffer.WriteString("\"")
+		buffer.WriteString(", \"value\":")
 		buffer.WriteString(string(queryResponse.Value))
+		buffer.WriteString("}")
 		bArrayMemberAlreadyWritten = true
 	}
 	buffer.WriteString("]}")
 
 	return &buffer, nil
 }
-
+// Ad Hoc即席查询
 func getQueryResultForQueryString(stub shim.ChaincodeStubInterface, queryString string) ([]byte, error) {
 
 	fmt.Printf("- getQueryResultForQueryString queryString:\n%s\n", queryString)
@@ -375,27 +283,13 @@ func (t *SimpleChaincode) queryWithQueryString(stub shim.ChaincodeStubInterface,
 	}
 	return shim.Success(queryResult)
 }
-
-func (t *SimpleChaincode) queryRecordById(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments, expecting 1")
-	}
-	id := strings.ToLower(args[0])
-	recordJsonAsBytes, err := stub.GetState(id)
-	if err != nil {
-		return shim.Error("Failed to get record: " + err.Error())
-	} else if recordJsonAsBytes == nil {
-		return shim.Error("Record does not exist")
-	}
-	return shim.Success(recordJsonAsBytes)
-}
-
+// 通过目标ID进行查询，可以分为查意见记录与审批记录两种，由DocType标识
 func (t *SimpleChaincode) queryRecordByObject(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	if len(args) != 2 {
 		return shim.Error("Incorrect number of arguments, expecting 2")
 	}
 	docType := args[0]
-	object := strings.ToLower(args[1])
+	object := args[1]
 	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"%s\",\"object\":\"%s\"}}", docType, object)
 	queryResult, err := getQueryResultForQueryString(stub, queryString)
 	if err != nil {
@@ -403,14 +297,15 @@ func (t *SimpleChaincode) queryRecordByObject(stub shim.ChaincodeStubInterface, 
 	}
 	return shim.Success(queryResult)
 }
-
+// 通过用户信息进行查询，可以分为查意见记录与审批记录两种，由DocType标识
 func (t *SimpleChaincode) queryRecordByUser(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments, expecting 3")
 	}
 	docType := args[0]
-	department := strings.ToLower(args[1])
-	name := strings.ToLower(args[2])
+	department := args[1]
+	name := args[2]
+	var err error
 	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"%s\",\"department\":\"%s\",\"name\":\"%s\"}}", docType, department, name)
 	queryResult, err := getQueryResultForQueryString(stub, queryString)
 	if err != nil {
